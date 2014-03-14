@@ -6,7 +6,7 @@ to Garmin TCX format
 
 copyright (C) 2012, Pablo Martin Medrano <pablo.martin@acm.org>
 
-Redistribute or modify undet the terms of the GPLv3. See
+Redistribute or modify under the terms of the GPLv3. See
 <http://www.gnu.org/licenses/>
 
 Most of it is based on for another Globalsat model, GH-615, written
