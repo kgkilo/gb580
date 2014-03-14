@@ -6,7 +6,7 @@ to Garmin TCX format
 
 copyright (C) 2012, Pablo Martin Medrano <pablo.martin@acm.org>
 
-Redistribute or modify undet the terms of the GPLv3. See 
+Redistribute or modify undet the terms of the GPLv3. See
 <http://www.gnu.org/licenses/>
 
 Most of it is based on for another Globalsat model, GH-615, written
@@ -16,6 +16,80 @@ originally by speigei@gmail.com. See http://code.google.com/p/gh615/
 
 import serial, datetime, time, optparse
 from pytz import timezone, utc
+
+
+class Utilities():
+    @classmethod
+    def dec2hex(self, n, pad = False):
+        hex = "%X" % int(n)
+        if pad:
+            hex = hex.rjust(pad, '0')[:pad]
+        return hex
+
+    @classmethod
+    def hex2dec(self, s):
+        return int(s, 16)
+
+    @classmethod
+    def hex2chr(self, hex):
+        out = ''
+        for i in range(0, len(hex), 2):
+            out += chr(self.hex2dec(hex[i : i+2]))
+        return out
+
+    @classmethod
+    def chr2hex(self, chr):
+        out = ''
+        for i in range(0, len(chr)):
+            out += '%(#)02X' % {"#": ord(chr[i])}
+        return out
+
+    @classmethod
+    def coord2hex(self, coord):
+        '''takes care of negative coordinates'''
+        coord = Decimal(str(coord))
+
+        if coord < 0:
+            return self.dec2hex((coord * Decimal(1000000) + Decimal(4294967295)),8)
+        else:
+            return self.dec2hex(coord * Decimal(1000000),8)
+
+    @classmethod
+    def hex2coord(self, hex):
+        '''takes care of negative coordinates'''
+        if hex[0:1] == 'F':
+            return Decimal(self.hex2dec(hex)/Decimal(1000000)) - Decimal('4294.967295')
+        else:
+            return Decimal(self.hex2dec(hex)/Decimal(1000000))
+
+    @classmethod
+    def chop(self, s, chunk):
+        return [s[i * chunk : (i+1) * chunk] for i in range((len(s) + chunk - 1) / chunk)]
+
+    @classmethod
+    def checkersum(self, hex):
+        checksum = 0
+
+        for i in range(0, len(hex), 2):
+            checksum = checksum ^ int(hex[i:i+2], 16)
+        return self.dec2hex(checksum)
+
+    @classmethod
+    def getAppPrefix(self, *args):
+        ''' Return the location the app is running from'''
+        isFrozen = False
+        try:
+            isFrozen = sys.frozen
+        except AttributeError:
+            pass
+        if isFrozen:
+            appPrefix = os.path.split(sys.executable)[0]
+        else:
+            appPrefix = os.path.split(os.path.abspath(sys.argv[0]))[0]
+        if args:
+            appPrefix = os.path.join(appPrefix,*args)
+        return appPrefix
+
 
 # Commands taken from gh615 code
 COMMANDS = {
@@ -33,46 +107,23 @@ COMMANDS = {
     'unknown'                         : '0200018382'
 }
 
-def dec2hex(n, pad = False):
-    hex = "%X" % int(n)
-    if pad:
-        hex = hex.rjust(pad, '0')[:pad]
-    return hex
-
-def hex2dec(hex):
-    return int(hex, 16)
-
-def hex2chr(hex):
-    out = ''
-    for i in range(0,len(hex),2):
-        out += chr(hex2dec(hex[i:i+2]))
-    return out
-
-def chr2hex(chr):
-    out = ''
-    for i in range(0,len(chr)):
-        out += '%(#)02X' % {"#": ord(chr[i])}
-    return out
-
-def chop(s, chunk):
-    return [s[i*chunk:(i+1)*chunk] for i in range((len(s)+chunk-1)/chunk)]
 
 def writeserial(command, *args, **kwargs):
     hex = COMMANDS[command] % kwargs
     print 'writing to serialport ' + hex
-    serial.write(hex2chr(hex))
+    serial.write(Utilities.hex2chr(hex))
     # time.sleep(2)
     print 'waiting at serialport: %i' % serial.inWaiting()
 
 def readserial(size = 2070):
-    data = chr2hex(serial.read(size))
+    data = Utilities.chr2hex(serial.read(size))
     print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
     return data
 
 def getmodel():
     writeserial('whoAmI')
     response = readserial()
-    watch = hex2chr(response[6:-4])
+    watch = Utilities.hex2chr(response[6:-4])
     print 'watch ' + watch
     product, model = watch[:-1], watch[-1:]
     print product + ' ' + model
@@ -88,18 +139,18 @@ def trackfromhex(hex, timezone=utc):
     id = 0
     t = {}
     if len(hex) == 44 or len(hex) == 48:
-        t['date'] = datetime.datetime(2000+hex2dec(hex[0:2]),
-                hex2dec(hex[2:4]), hex2dec(hex[4:6]),
-                hex2dec(hex[6:8]), hex2dec(hex[8:10]),
-                hex2dec(hex[10:12]), tzinfo=timezone)
+        t['date'] = datetime.datetime(2000+Utilities.hex2dec(hex[0:2]),
+                Utilities.hex2dec(hex[2:4]), Utilities.hex2dec(hex[4:6]),
+                Utilities.hex2dec(hex[6:8]), Utilities.hex2dec(hex[8:10]),
+                Utilities.hex2dec(hex[10:12]), tzinfo=timezone)
         # Endianess is different in this devicea
         t['trackpoints'] = int(hex[14:16] + hex[12:14], 16)
         t['duration'] = int(hex[18:20] + hex[16:18], 16)
         t['distance'] =  int(hex[22:24] + hex[20:22] + hex[26:28] + hex[24:26], 16)
-        #track['calories'] = hex2dec(hex[28:32])
-        #track['count'] = hex2dec(hex[36:44])
-        t['laps'] = hex2dec(hex[30:34])
-        t['id'] = hex2dec(hex[38:42])
+        #track['calories'] = Utilities.hex2dec(hex[28:32])
+        #track['count'] = Utilities.hex2dec(hex[36:44])
+        t['laps'] = Utilities.hex2dec(hex[30:34])
+        t['id'] = Utilities.hex2dec(hex[38:42])
     print 'raw track: ' + str(hex)
     print 'id ' + str(t['id']) + ' date ' + str(t['date']) + ' duration ' + \
             parsedecisec(t['duration']) + ' distance ' + str(t['distance']) + \
@@ -107,29 +158,22 @@ def trackfromhex(hex, timezone=utc):
             +' laps ' + str(t['laps'])
     return t
 
-def checkersum(hex):
-    checksum = 0
-
-    for i in range(0,len(hex),2):
-        checksum = checksum^int(hex[i:i+2],16)
-    return dec2hex(checksum)
-
 def gettracklist():
     writeserial('getTracklist')
     tracklist = readserial()
     if len(tracklist) > 8:
-        tracks = chop(tracklist[6:-2],48)#trim header, wtf?
+        tracks = Utilities.chop(tracklist[6:-2],48)#trim header, wtf?
         print '%i tracks found' % len(tracks)
         for track in tracks:
             trackfromhex(track)
 
 def gettracks(trackids):
     gdata = ''
-    trackids = [dec2hex(str(id), 4) for id in trackids]
-    payload = dec2hex((len(trackids) * 512) + 896, 4)
-    numberoftracks = dec2hex(len(trackids), 4)
-    checksum = checkersum("%s%s%s" % (payload, numberoftracks,
-        ''.join(trackids)))
+    trackids = [Utilities.dec2hex(str(id), 4) for id in trackids]
+    payload = Utilities.dec2hex((len(trackids) * 512) + 896, 4)
+    numberoftracks = Utilities.dec2hex(len(trackids), 4)
+    checksum = Utilities.checkersum("%s%s%s" %
+                    (payload, numberoftracks, ''.join(trackids)))
     writeserial('getTracks', **{'payload':payload,
         'numberOfTracks':numberoftracks, 'trackIds':''.join(trackids),
         'checksum':checksum})
