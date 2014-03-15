@@ -91,42 +91,108 @@ class Utilities():
         return appPrefix
 
 
-# Commands taken from gh615 code
-COMMANDS = {
-    'getTracklist'                    : '0200017879',
-    #'setTracks'                       : '02%(payload)s%(isFirst)s%(trackInfo)s%(from)s%(to)s%(trackpoints)s%(checksum)s',
-    'getTracks'                       : '0200%(payload)s%(numberOfTracks)s%(trackIds)s%(checksum)s',
-    'requestNextTrackSegment'         : '0200018180',
-    'requestErrornousTrackSegment'    : '0200018283',
-    'formatTracks'                    : '0200037900641E',
-    'getWaypoints'                    : '0200017776',
-    'setWaypoints'                    : '02%(payload)s76%(numberOfWaypoints)s%(waypoints)s%(checksum)s',
-    'formatWaypoints'                 : '02000375006412',
-    'unitInformation'                 : '0200018584',
-    'whoAmI'                          : '020001BFBE',
-    'unknown'                         : '0200018382'
-}
+class GB580():
+    """API for Globalsat GB580"""
+
+    # Commands taken from gh615 code
+    COMMANDS = {
+        'getTracklist'                    : '0200017879',
+        #'setTracks'                       : '02%(payload)s%(isFirst)s%(trackInfo)s%(from)s%(to)s%(trackpoints)s%(checksum)s',
+        'getTracks'                       : '0200%(payload)s%(numberOfTracks)s%(trackIds)s%(checksum)s',
+        'requestNextTrackSegment'         : '0200018180',
+        'requestErrornousTrackSegment'    : '0200018283',
+        'formatTracks'                    : '0200037900641E',
+        'getWaypoints'                    : '0200017776',
+        'setWaypoints'                    : '02%(payload)s76%(numberOfWaypoints)s%(waypoints)s%(checksum)s',
+        'formatWaypoints'                 : '02000375006412',
+        'unitInformation'                 : '0200018584',
+        'whoAmI'                          : '020001BFBE',
+        'unknown'                         : '0200018382'
+    }
 
 
-def writeserial(command, *args, **kwargs):
-    hex = COMMANDS[command] % kwargs
-    print 'writing to serialport ' + hex
-    serial.write(Utilities.hex2chr(hex))
-    # time.sleep(2)
-    print 'waiting at serialport: %i' % serial.inWaiting()
+    def writeSerial(self, command, *args, **kwargs):
+        hex = self.COMMANDS[command] % kwargs
+        print 'writing to serialport: %s' % hex
+        serial.write(Utilities.hex2chr(hex))
+        #time.sleep(2)
+        print 'waiting at serialport: %i' % serial.inWaiting()
 
-def readserial(size = 2070):
-    data = Utilities.chr2hex(serial.read(size))
-    print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
-    return data
 
-def getmodel():
-    writeserial('whoAmI')
-    response = readserial()
-    watch = Utilities.hex2chr(response[6:-4])
-    print 'watch ' + watch
-    product, model = watch[:-1], watch[-1:]
-    print product + ' ' + model
+    def readSerial(self, size = 2070):
+        data = Utilities.chr2hex(serial.read(size))
+        print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
+        return data
+
+
+    def getModel(self):
+        self.writeSerial('whoAmI')
+        response = self.readSerial()
+        watch = Utilities.hex2chr(response[6 : -4])
+        print 'watch ' + watch
+        product, model = watch[ : -1], watch[-1 : ]
+        print product + ' ' + model
+
+    def getTrackList(self):
+        self.writeSerial('getTracklist')
+        tracklist = self.readSerial()
+        if len(tracklist) > 8:
+            tracks = Utilities.chop(tracklist[6 : -2], 48)#trim header, wtf?
+            print '%i tracks found' % len(tracks)
+            for track in tracks:
+                self.trackFromHex(track)
+
+
+    def trackFromHex(self, hex, timezone=utc):
+        '''
+        Start date
+        0-1 : year
+        2-3 : month
+        4-5 : date
+        6-7 : hour
+        8-9 : minute
+        10-11 : second
+
+        Trackpoints
+        12-15: Number of trackpoints
+
+        Duration in seconds
+        16-19: seconds
+
+        Distance in meters
+        24-27: meters
+
+        Lap info
+        30-33 : Number of laps
+
+        Track id
+        38-41: Track id, starting from 0
+        '''
+
+        t = {}
+        if len(hex) == 44 or len(hex) == 48:
+            t['date'] = datetime.datetime(2000+Utilities.hex2dec(hex[0:2]),
+                    Utilities.hex2dec(hex[2:4]), Utilities.hex2dec(hex[4:6]),
+                    Utilities.hex2dec(hex[6:8]), Utilities.hex2dec(hex[8:10]),
+                    Utilities.hex2dec(hex[10:12]), tzinfo=timezone)
+            # Endianess is different in this device
+            t['trackpoints'] = Utilities.hex2dec(hex[14:16] + hex[12:14])
+            t['duration'] = Utilities.hex2dec(hex[18:20] + hex[16:18])
+            t['laps'] = Utilities.hex2dec(hex[30:34])
+            t['id'] = Utilities.hex2dec(hex[38:42])
+            t['distance'] =  Utilities.hex2dec(hex[26:28] + hex[24:26])
+
+            #track['calories'] = Utilities.hex2dec(hex[28:32])
+            #track['count'] = Utilities.hex2dec(hex[36:44])
+
+        print 'raw track: ' + str(hex)
+        print 'id:' + str(t['id']) + ' date:' + str(t['date']) + ' duration:' + \
+                str(t['duration']) + ' distance:' + str(t['distance']) + \
+                ' trackpoints:' + str(t['trackpoints']) \
+                +' laps:' + str(t['laps'])
+        return t
+
+
 
 def parsedecisec(dsec):
     hours = dsec / 36000;
@@ -134,38 +200,6 @@ def parsedecisec(dsec):
     seconds = (dsec - (hours * 36000) - (minutes * 600)) / 10
     dseconds = (dsec - (hours * 36000) - (minutes * 600) - (seconds * 10))
     return '%2.2d:%2.2d:%2.2d.%1d' % (hours, minutes, seconds, dseconds)
-
-def trackfromhex(hex, timezone=utc):
-    id = 0
-    t = {}
-    if len(hex) == 44 or len(hex) == 48:
-        t['date'] = datetime.datetime(2000+Utilities.hex2dec(hex[0:2]),
-                Utilities.hex2dec(hex[2:4]), Utilities.hex2dec(hex[4:6]),
-                Utilities.hex2dec(hex[6:8]), Utilities.hex2dec(hex[8:10]),
-                Utilities.hex2dec(hex[10:12]), tzinfo=timezone)
-        # Endianess is different in this devicea
-        t['trackpoints'] = int(hex[14:16] + hex[12:14], 16)
-        t['duration'] = int(hex[18:20] + hex[16:18], 16)
-        t['distance'] =  int(hex[22:24] + hex[20:22] + hex[26:28] + hex[24:26], 16)
-        #track['calories'] = Utilities.hex2dec(hex[28:32])
-        #track['count'] = Utilities.hex2dec(hex[36:44])
-        t['laps'] = Utilities.hex2dec(hex[30:34])
-        t['id'] = Utilities.hex2dec(hex[38:42])
-    print 'raw track: ' + str(hex)
-    print 'id ' + str(t['id']) + ' date ' + str(t['date']) + ' duration ' + \
-            parsedecisec(t['duration']) + ' distance ' + str(t['distance']) + \
-            ' trackpoints ' + str(t['trackpoints']) \
-            +' laps ' + str(t['laps'])
-    return t
-
-def gettracklist():
-    writeserial('getTracklist')
-    tracklist = readserial()
-    if len(tracklist) > 8:
-        tracks = Utilities.chop(tracklist[6:-2],48)#trim header, wtf?
-        print '%i tracks found' % len(tracks)
-        for track in tracks:
-            trackfromhex(track)
 
 def gettracks(trackids):
     gdata = ''
@@ -184,11 +218,9 @@ def gettracks(trackids):
         gdata += data
     return gdata
 
-#    while True:
-#        data = self._readSerial(2075)
-#        time.sleep(2)
+
 usage = '''
-Usage: gb850.py [-fi <input-format>] [-fo <output format>] convert <infile> <outfile>
+Usage: gb580.py [-fi <input-format>] [-fo <output format>] convert <infile> <outfile>
                 [-d <device>] list
                 [-d <device>] [-fo <output format>] extract <outfile>
 
@@ -201,6 +233,8 @@ Usage: gb850.py [-fi <input-format>] [-fo <output format>] convert <infile> <out
        if input file is ommited, the device is used
        if output file is ommited, stdout is used
 '''
+
+
 if __name__=="__main__":
     parser = optparse.OptionParser()
     parser.add_option("-f", "--output-format", dest="output-format", default="FCX",
@@ -218,18 +252,17 @@ if __name__=="__main__":
                       help="Use <device> as serial port for the GB850P, if \
 ommited, use /dev/ttyACM0... Find out with dmesg")
 
-print 'Opening serial port at /dev/ttyACM0, 57600 bauds...'
-serial = serial.Serial(port='/dev/ttyACM0', baudrate='57600',
-    timeout=2)
+    gb = GB580()
 
-# writeserial('whoAmI')
-# print readserial()
+    #test run
+    print 'Opening serial port at /dev/ttyACM0, 57600 bauds...'
+    serial = serial.Serial(port='/dev/ttyACM0', baudrate='57600',
+        timeout=2)
 
-getmodel()
+    gb.getModel()
+    gb.getTrackList()
+    #track = gettracks([0])
+    #print track
 
-gettracklist()
 
-track7 = gettracks([0])
-
-print track7
 
