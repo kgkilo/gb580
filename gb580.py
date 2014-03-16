@@ -139,6 +139,7 @@ class GB580():
         if len(tracklist) > 8:
             tracks = Utilities.chop(tracklist[6 : -2], 48)#trim header, wtf?
             print '%i tracks found' % len(tracks)
+            print 'id           date            distance duration topspeed trkpnts  laps'
             for track in tracks:
                 self.trackFromHex(track)
 
@@ -180,16 +181,15 @@ class GB580():
             t['duration'] = Utilities.hex2dec(hex[18:20] + hex[16:18])
             t['laps'] = Utilities.hex2dec(hex[30:34])
             t['id'] = Utilities.hex2dec(hex[38:42])
-            t['distance'] =  Utilities.hex2dec(hex[26:28] + hex[24:26])
+            t['distance'] = Utilities.hex2dec(hex[26:28] + hex[24:26])
+            t['calories'] = 0   #Utilities.hex2dec(hex[28:32])
+            t['topspeed'] = 0   #Utilities.hex2dec(hex[36:44])
 
-            #track['calories'] = Utilities.hex2dec(hex[28:32])
-            #track['count'] = Utilities.hex2dec(hex[36:44])
+        #~ print 'raw track: ' + str(hex)
+        print "%02i %s %08i %08i %08i %08i %04i" % \
+            (t['id'], str(t['date']), t['distance'], t['duration'],
+             t['topspeed'], t['trackpoints'], t['laps'])
 
-        print 'raw track: ' + str(hex)
-        print 'id:' + str(t['id']) + ' date:' + str(t['date']) + ' duration:' + \
-                str(t['duration']) + ' distance:' + str(t['distance']) + \
-                ' trackpoints:' + str(t['trackpoints']) \
-                +' laps:' + str(t['laps'])
         return t
 
 
