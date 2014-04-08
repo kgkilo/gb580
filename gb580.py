@@ -75,20 +75,20 @@ class Utilities():
         return self.dec2hex(checksum)
 
     @classmethod
-    def getAppPrefix(self, *args):
+    def get_app_prefix(self, *args):
         ''' Return the location the app is running from'''
-        isFrozen = False
+        is_frozen = False
         try:
-            isFrozen = sys.frozen
+            is_frozen = sys.frozen
         except AttributeError:
             pass
-        if isFrozen:
-            appPrefix = os.path.split(sys.executable)[0]
+        if is_frozen:
+            app_prefix = os.path.split(sys.executable)[0]
         else:
-            appPrefix = os.path.split(os.path.abspath(sys.argv[0]))[0]
+            app_prefix = os.path.split(os.path.abspath(sys.argv[0]))[0]
         if args:
-            appPrefix = os.path.join(appPrefix,*args)
-        return appPrefix
+            app_prefix = os.path.join(app_prefix, *args)
+        return app_prefix
 
 
 class GB580():
@@ -111,7 +111,7 @@ class GB580():
     }
 
 
-    def writeSerial(self, command, *args, **kwargs):
+    def write_serial(self, command, *args, **kwargs):
         hex = self.COMMANDS[command] % kwargs
         print 'writing to serialport: %s' % hex
         serial.write(Utilities.hex2chr(hex))
@@ -119,32 +119,32 @@ class GB580():
         print 'waiting at serialport: %i' % serial.inWaiting()
 
 
-    def readSerial(self, size = 2070):
+    def read_serial(self, size = 2070):
         data = Utilities.chr2hex(serial.read(size))
         print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
         return data
 
 
-    def getModel(self):
-        self.writeSerial('whoAmI')
-        response = self.readSerial()
+    def get_model(self):
+        self.write_serial('whoAmI')
+        response = self.read_serial()
         watch = Utilities.hex2chr(response[6 : -4])
         print 'watch ' + watch
         product, model = watch[ : -1], watch[-1 : ]
         print product + ' ' + model
 
-    def getTrackList(self):
-        self.writeSerial('getTracklist')
-        tracklist = self.readSerial()
-        if len(tracklist) > 8:
-            tracks = Utilities.chop(tracklist[6 : -2], 48)#trim header, wtf?
+    def get_track_list(self):
+        self.write_serial('getTracklist')
+        track_list = self.read_serial()
+        if len(track_list) > 8:
+            tracks = Utilities.chop(track_list[6 : -2], 48)#trim header, wtf?
             print '%i tracks found' % len(tracks)
             print 'id           date            distance duration topspeed trkpnts  laps'
             for track in tracks:
-                self.trackFromHex(track)
+                self.track_from_hex(track)
 
 
-    def trackFromHex(self, hex, timezone=utc):
+    def track_from_hex(self, hex, timezone=utc):
         '''
         Start date
         0-1 : year
@@ -208,13 +208,13 @@ def gettracks(trackids):
     numberoftracks = Utilities.dec2hex(len(trackids), 4)
     checksum = Utilities.checkersum("%s%s%s" %
                     (payload, numberoftracks, ''.join(trackids)))
-    writeserial('getTracks', **{'payload':payload,
+    write_serial('getTracks', **{'payload':payload,
         'numberOfTracks':numberoftracks, 'trackIds':''.join(trackids),
         'checksum':checksum})
 #    while(True)
     for i in range(30):
-        data = readserial(2075)
-        writeserial('requestNextTrackSegment')
+        data = read_serial(2075)
+        write_serial('requestNextTrackSegment')
         gdata += data
     return gdata
 
@@ -259,8 +259,8 @@ ommited, use /dev/ttyACM0... Find out with dmesg")
     serial = serial.Serial(port='/dev/ttyACM0', baudrate='57600',
         timeout=2)
 
-    gb.getModel()
-    gb.getTrackList()
+    gb.get_model()
+    gb.get_track_list()
     #track = gettracks([0])
     #print track
 
