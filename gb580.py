@@ -157,8 +157,8 @@ class GB580():
         Trackpoints
         12-15: Number of trackpoints
 
-        Duration in seconds
-        16-19: seconds
+        Duration in 1/10th seconds
+        16-21: seconds
 
         Distance in meters
         24-29: meters
@@ -178,7 +178,7 @@ class GB580():
                     Utilities.hex2dec(hex[10:12]), tzinfo=timezone)
             # Endianess is different in this device
             t['trackpoints'] = Utilities.hex2dec(hex[14:16] + hex[12:14])
-            t['duration'] = Utilities.hex2dec(hex[18:20] + hex[16:18])
+            t['duration'] = Utilities.hex2dec(hex[20:22] + hex[18:20] + hex[16:18])
             t['laps'] = Utilities.hex2dec(hex[30:34])
             t['id'] = Utilities.hex2dec(hex[38:42])
             t['distance'] = Utilities.hex2dec(hex[28:30] + hex[26:28] + hex[24:26])
