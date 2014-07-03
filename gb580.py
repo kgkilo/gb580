@@ -64,6 +64,7 @@ class Utilities():
 
     @classmethod
     def chop(self, s, chunk):
+        '''chops the input string into chunk length segments'''
         return [s[i * chunk : (i+1) * chunk] for i in range((len(s) + chunk - 1) / chunk)]
 
     @classmethod
@@ -113,7 +114,7 @@ class GB580():
 
     def write_serial(self, command, *args, **kwargs):
         hex = self.COMMANDS[command] % kwargs
-        print 'writing to serialport: %s' % hex
+        print 'writing to serialport: %s %s' % (command, hex)
         serial.write(Utilities.hex2chr(hex))
         #time.sleep(2)
         print 'waiting at serialport: %i' % serial.inWaiting()
@@ -129,15 +130,18 @@ class GB580():
         self.write_serial('whoAmI')
         response = self.read_serial()
         watch = Utilities.hex2chr(response[6 : -4])
-        print 'watch ' + watch
         product, model = watch[ : -1], watch[-1 : ]
-        print product + ' ' + model
+        print 'watch: %s, product: %s, model: %s' % (watch, product, model)
 
     def get_track_list(self):
         self.write_serial('getTracklist')
         track_list = self.read_serial()
-        if len(track_list) > 8:
-            tracks = Utilities.chop(track_list[6 : -2], 48)#trim header, wtf?
+        if len(track_list) > 8: #string len is > 8 so not an error code
+            #trim 6-byte header and 2-byte footer,
+            #then chop the string into 48-byte segments,
+            #each segment corresponds a track header
+            tracks = Utilities.chop(track_list[6 : -2], 48)
+            #Print a list of track headers
             print '%i tracks found' % len(tracks)
             print 'id           date            distance duration topspeed trkpnts  laps'
             for track in tracks:
@@ -147,12 +151,8 @@ class GB580():
     def track_from_hex(self, hex, timezone=utc):
         '''
         Start date
-        0-1 : year
-        2-3 : month
-        4-5 : date
-        6-7 : hour
-        8-9 : minute
-        10-11 : second
+        0-1 : year, 2-3 : month, 4-5 : date
+        6-7 : hour, 8-9 : minute, 10-11 : second
 
         Trackpoints
         12-15: Number of trackpoints
@@ -200,23 +200,6 @@ def parsedecisec(dsec):
     seconds = (dsec - (hours * 36000) - (minutes * 600)) / 10
     dseconds = (dsec - (hours * 36000) - (minutes * 600) - (seconds * 10))
     return '%2.2d:%2.2d:%2.2d.%1d' % (hours, minutes, seconds, dseconds)
-
-def gettracks(trackids):
-    gdata = ''
-    trackids = [Utilities.dec2hex(str(id), 4) for id in trackids]
-    payload = Utilities.dec2hex((len(trackids) * 512) + 896, 4)
-    numberoftracks = Utilities.dec2hex(len(trackids), 4)
-    checksum = Utilities.checkersum("%s%s%s" %
-                    (payload, numberoftracks, ''.join(trackids)))
-    write_serial('getTracks', **{'payload':payload,
-        'numberOfTracks':numberoftracks, 'trackIds':''.join(trackids),
-        'checksum':checksum})
-#    while(True)
-    for i in range(30):
-        data = read_serial(2075)
-        write_serial('requestNextTrackSegment')
-        gdata += data
-    return gdata
 
 
 usage = '''
