@@ -161,7 +161,7 @@ class GB580():
         16-19: seconds
 
         Distance in meters
-        24-27: meters
+        24-29: meters
 
         Lap info
         30-33 : Number of laps
@@ -181,7 +181,7 @@ class GB580():
             t['duration'] = Utilities.hex2dec(hex[18:20] + hex[16:18])
             t['laps'] = Utilities.hex2dec(hex[30:34])
             t['id'] = Utilities.hex2dec(hex[38:42])
-            t['distance'] = Utilities.hex2dec(hex[26:28] + hex[24:26])
+            t['distance'] = Utilities.hex2dec(hex[28:30] + hex[26:28] + hex[24:26])
             t['calories'] = 0   #Utilities.hex2dec(hex[28:32])
             t['topspeed'] = 0   #Utilities.hex2dec(hex[36:44])
 
@@ -261,8 +261,8 @@ ommited, use /dev/ttyACM0... Find out with dmesg")
 
     gb.get_model()
     gb.get_track_list()
-    #track = gettracks([0])
-    #print track
+    track = gb.get_tracks([0])
+    print track
 
 
 
