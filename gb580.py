@@ -14,18 +14,24 @@ originally by speigei@gmail.com. See http://code.google.com/p/gh615/
 
 '''
 
+import sys
 import serial, datetime, time, optparse
 from pytz import timezone, utc
 from decimal import Decimal
+from dateutil import parser #needs python-dateutil on Ubuntu
+from datetime import timedelta
 
-DEBUG = True
+DEBUG = False
 TRACK_HEADER_LEN = 48   # 24bytes
 TRACK_POINT_LEN = 64    # 32bytes
 TRACK_LAP_LEN   = 80    # 40bytes
 TRACKPTS_PER_SECTION = 63
 SECTION_LEN = 4080 # TRACK_HEADER_LEN + TRACKPTS_PER_SECTION*TRACK_POINT_LEN (in bytes)
+act_time = None
 
 class Utilities():
+    """Contains several conversion utility functions"""
+
     @classmethod
     def dec2hex(self, n, pad = False):
         hex = "%X" % int(n)
@@ -109,11 +115,12 @@ class Utilities():
         return ret
 
     @classmethod
-    def read_datetime(self, hex):
+    def read_datetime(self, hex, timezone):
         return datetime.datetime(2000 + self.hex2dec(hex[0:2]),
             self.hex2dec(hex[2:4]), self.hex2dec(hex[4:6]),
             self.hex2dec(hex[6:8]), self.hex2dec(hex[8:10]),
-            self.hex2dec(hex[10:12]), tzinfo=utc)
+            self.hex2dec(hex[10:12]), tzinfo=timezone)
+
 
 
 class Serial():
@@ -121,16 +128,19 @@ class Serial():
 
     def write_serial(self, command, *args, **kwargs):
         hex = self.COMMANDS[command] % kwargs
-        print 'writing to serialport: %s %s' % (command, hex)
+        if DEBUG:
+            print 'writing to serialport: %s %s' % (command, hex)
         serial.write(Utilities.hex2chr(hex))
         #time.sleep(2)
-        print 'waiting at serialport: %i' % serial.inWaiting()
+        if DEBUG:
+            print 'waiting at serialport: %i' % serial.inWaiting()
 
 
     def read_serial(self, size = 2070):
         data = Utilities.chr2hex(serial.read(size))
-        #print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
-        #print 'serial port returned: %s' % data
+        if DEBUG:
+            print 'serial port returned: %s' % data if len(data) < 30 else '%s... (truncated)' % data[:30]
+            #print 'serial port returned: %s' % data
         return data
 
 
@@ -157,17 +167,18 @@ class TrackPoint:
     '''
 
     def __init__(self):
-        self.latitude       = 0
-        self.longitude      = 0
-        self.altitude       = 0
-        self.speed          = 0
-        self.hr             = 0
-        self.interval_time  = 0
-        self.cadence        = 0
-        self.power_cad      = 0
-        self.power          = 0
+        self.latitude       = None  # [+N, -S]
+        self.longitude      = None  # [+E, -W]
+        self.altitude       = None  # [m]
+        self.speed          = None  # [km/h]
+        self.hr             = None  # [1/min]
+        self.interval_time  = None  # [s]
+        self.timestamp      = None  # [absolute time]
+        self.cadence        = None  # [1/min]
+        self.power_cad      = None
+        self.power          = None  # [W]
 
-    def process_trackpoint(self, data):
+    def process_trackpoint(self, data, act_time):
         self.latitude = Utilities.read_int32(data[0:]) / 1000000.0
         self.longitude = Utilities.read_int32(data[8:]) / 1000000.0
         self.altitude = Utilities.read_int16(data[16:])
@@ -177,11 +188,88 @@ class TrackPoint:
         self.cadence = Utilities.read_int16(data[48:])
         self.power_cad = Utilities.read_int16(data[52:])
         self.power = Utilities.read_int16(data[56:])
+
+        #Timestamp is an increment from the previous trackpoint
+        act_time += timedelta(milliseconds = self.interval_time * 1000)
+        self.timestamp = act_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         if DEBUG:
             print(self.latitude, self.longitude, self.altitude,
                 self.speed, self.hr, self.interval_time,
                 self.cadence, self.power_cad, self.power)
-        return TRACK_POINT_LEN
+        return act_time
+
+    def extension(self, temp):
+        '''Compiles the GPX extension part of a trackpoint'''
+        #if self.__opts['noext']:
+        #    return ""
+
+        extension_found = False
+
+        hr_ext = ""
+        if (self.hr is not None):
+            extension_found = True
+            hr_ext = "<gpxtpx:hr>{hr}</gpxtpx:hr>".format(hr=self.hr)
+
+        tmp_ext = ""
+        #if ((not self.__opts['notemp']) and (temperature is not None)):
+        if (temp is not None):
+            extension_found = True
+            tmp_ext = "<gpxtpx:atemp>{temp}</gpxtpx:atemp>".format(
+                                                    temp=temp)
+
+        cad_ext = ""
+        if (self.cadence is not None):
+            extension_found = True
+            cad_ext = "<gpxtpx:cad>{cad}</gpxtpx:cad>".format(
+                                                    cad=self.cadence)
+
+        pow_ext = ""
+        #if ((not self.__opts['nopower']) and (power is not None)):
+        if (self.power is not None):
+            extension_found = True
+            pow_ext = "<gpxtpx:power>{pwr}</gpxtpx:power>".format(
+                                                    pwr=self.power)
+
+        if not extension_found:
+            return ""
+
+        #Compose return string
+        ret = """<extensions>
+        <gpxtpx:TrackPointExtension>
+            {hrext}""".format(hrext=hr_ext)
+
+        if tmp_ext != "":
+            ret += """
+            {tmpext}""".format(tmpext=tmp_ext)
+
+        if pow_ext != "":
+            ret += """
+            {powext}""".format(powext=pow_ext)
+
+        if cad_ext != "":
+            ret += """
+            {cadext}""".format(cadext=cad_ext)
+
+        ret += """
+        </gpxtpx:TrackPointExtension>
+    </extensions>"""
+
+        return ret
+
+
+    def write_gpx(self):
+        '''Writes the data to a GPX trackpoint structure'''
+        temperature = None
+        ret = \
+"""
+<trkpt lat="{latitude}" lon="{longitude}"><ele>{altitude}</ele><time>{time}</time><speed>{speed}</speed>
+    {extension}
+</trkpt>
+""".format(latitude=self.latitude, longitude=self.longitude,
+            altitude=self.altitude, time=self.timestamp, speed=self.speed,
+            extension=self.extension(temperature))
+        return ret
 
 
 class TrackLap:
@@ -230,21 +318,21 @@ class TrackLap:
     '''
 
     def __init__(self):
-        self.end_time       = 0
-        self.lap_time       = 0
-        self.distance       = 0
-        self.calories       = 0
-        self.max_speed      = 0
-        self.max_hr         = 0
-        self.avg_hr         = 0
-        self.min_altitude   = 0
-        self.max_altitude   = 0
-        self.avg_cadence    = 0
-        self.max_cadence    = 0
-        self.avg_power      = 0
-        self.max_power      = 0
-        self.start_pt_index = 0
-        self.end_pt_index   = 0
+        self.end_time       = None  # [s] Seconds from workout start
+        self.lap_time       = None  # [s] Seconds from lap start
+        self.distance       = None  # [m]
+        self.calories       = None  # [kCal]
+        self.max_speed      = None  # [km/h]
+        self.max_hr         = None  # [1/min]
+        self.avg_hr         = None  # [1/min]
+        self.min_altitude   = None  # [m]
+        self.max_altitude   = None  # [m]
+        self.avg_cadence    = None  # [1/min]
+        self.max_cadence    = None  # [1/min]
+        self.avg_power      = None  # [W]
+        self.max_power      = None  # [W]
+        self.start_pt_index = None  # [idx]
+        self.end_pt_index   = None  # [idx]
 
     def process_lap(self, data):
         self.end_time = Utilities.read_int32(data[0:]) / 10.0
@@ -271,6 +359,9 @@ class TrackLap:
                 self.max_power, self.start_pt_index, self.end_pt_index)
         return TRACK_LAP_LEN
 
+    def write_gpx(self):
+        return ""
+
 
 class GB580(Serial):
     """API for Globalsat GB580"""
@@ -292,27 +383,79 @@ class GB580(Serial):
     }
 
     def __init__(self):
-        self.laps = []
+        self.track_laps = []
         self.track_points = []
 
+    def get_startdate(self):
+        '''Returns the track start date as a string, eg 20141231'''
+        return self.act_time.strftime("%Y%m%d")
 
     def get_model(self):
+        '''Reads and displays the GPS unit's model & version'''
         self.write_serial('whoAmI')
         response = self.read_serial()
         watch = Utilities.hex2chr(response[6 : -4])
         product, model = watch[ : -1], watch[-1 : ]
         print 'watch: %s, product: %s, model: %s' % (watch, product, model)
 
-
-    def read_track_list(self):
+    def read_tracklist(self):
+        '''Reads the complete track list'''
         self.write_serial('getTracklist')
-        track_list = self.read_serial()
-        if len(track_list) > 8: #string len is > 8 so not an error code
-            return self.process_tracklist(track_list)
+        tracklist = self.read_serial()
+        if len(tracklist) > 8: #string len is > 8 so not an error code
+            return self.process_tracklist(tracklist)
 
+    def process_tracklist(self, tracklist, timezone=timezone('Europe/Budapest')):
+        '''
+        The tracklist only contains basic information about the tracks:
+        id, date, time, duration, laps
+
+        0E0A1D122A2C B806 248D 0000 695B 0000 0100 CA00 0800 0000 E8
+        0            6    8    10   12   14   16   18   20   22
+        0       0E      14      year
+                0A      10      month
+                1D      29      day
+                12      18      hour
+                2A      42      minutes
+                2C      44      seconds
+        6       B806    06B8    1720        TrackPointCount
+        8       248D
+        10      0000    00008D24 36132      TotalTime   3613.2s
+        12      695B
+        14      0000    00005B69 23401      TotalDistanceMeters 23401m
+        16      0100    0001    1           LapCount
+        18      CA00    00CA    202         TrackPointIndex
+        20      0800    0008    8           TrackId, starting from 0
+        '''
+
+        #trim 6-byte header and 2-byte footer,
+        #then chop the string into 48-byte segments,
+        #each segment corresponds a track header
+        tracks = Utilities.chop(tracklist[6 : -2], 48)
+        #Print a list of track headers
+        print '%i tracks found' % len(tracks)
+        print 'id           date            distance duration topspeed trkpnts  laps'
+        for track in tracks:
+            t = {}
+            if len(track) == 44 or len(track) == 48:
+                t['date'] = Utilities.read_datetime(track, timezone)
+                t['trackpoints'] = Utilities.hex2dec(track[14:16] + track[12:14])
+                t['duration'] = Utilities.hex2dec(track[20:22] + track[18:20] + track[16:18])
+                t['laps'] = Utilities.hex2dec(track[30:34])
+                t['id'] = Utilities.hex2dec(track[38:42])
+                t['distance'] = Utilities.hex2dec(track[28:30] + track[26:28] + track[24:26])
+                t['calories'] = 0   #Utilities.hex2dec(track[28:32])
+                t['topspeed'] = 0   #Utilities.hex2dec(track[36:44])
+
+            #~ print 'raw track: ' + str(track)
+            print "%02i %s %08i %08i %08i %08i %04i" % \
+                (t['id'], str(t['date']), t['distance'], t['duration'],
+                 t['topspeed'], t['trackpoints'], t['laps'])
+
+        return tracks
 
     def read_track(self, track_ids):
-        track_ids = [Utilities.dec2hex(str(track_id), 4)]
+        track_ids = [Utilities.dec2hex(str(track_ids), 4)]
         payload = Utilities.dec2hex((len(track_ids) * 512) + 896, 4)
         num_of_tracks = Utilities.dec2hex(len(track_ids), 4)
         checksum = Utilities.checkersum("%s%s%s" %
@@ -325,10 +468,9 @@ class GB580(Serial):
         #time.sleep(2)
         self.process_track_header(data)
 
-
     def process_track_header(self, data):
         data = data[6:]
-        self.start_time = Utilities.read_datetime(data) #timezone?
+        self.start_time = Utilities.read_datetime(data, timezone('Europe/Budapest')) #timezone?
         self.track_pt_count = Utilities.read_int16(data[12:])
         self.total_time = Utilities.read_int32(data[16:]) / 10.0
         self.total_distance = Utilities.read_int32(data[24:])
@@ -345,6 +487,8 @@ class GB580(Serial):
         self.max_cadence = Utilities.read_int16(data[88:]);
         self.avg_power = Utilities.read_int16(data[92:]);
         self.max_power = Utilities.read_int16(data[96:]);
+
+        self.act_time = self.start_time
 
         if DEBUG:
             print(self.start_time,
@@ -364,60 +508,7 @@ class GB580(Serial):
                 self.max_cadence,
                 self.avg_power,
                 self.max_power)
-
-
-    def process_tracklist(self, track_list, timezone=utc):
-        '''
-        Start date
-        0-1 : year, 2-3 : month, 4-5 : date
-        6-7 : hour, 8-9 : minute, 10-11 : second
-
-        Trackpoints
-        12-15: Number of trackpoints
-
-        Duration in 1/10th seconds
-        16-21: seconds
-
-        Distance in meters
-        24-29: meters
-
-        Lap info
-        30-33 : Number of laps
-
-        Track id
-        38-41: Track id, starting from 0
-        '''
-
-        #trim 6-byte header and 2-byte footer,
-        #then chop the string into 48-byte segments,
-        #each segment corresponds a track header
-        tracks = Utilities.chop(track_list[6 : -2], 48)
-        #Print a list of track headers
-        print '%i tracks found' % len(tracks)
-        print 'id           date            distance duration topspeed trkpnts  laps'
-        for track in tracks:
-
-            t = {}
-            if len(track) == 44 or len(track) == 48:
-                t['date'] = datetime.datetime(2000+Utilities.hex2dec(track[0:2]),
-                        Utilities.hex2dec(track[2:4]), Utilities.hex2dec(track[4:6]),
-                        Utilities.hex2dec(track[6:8]), Utilities.hex2dec(track[8:10]),
-                        Utilities.hex2dec(track[10:12]), tzinfo=timezone)
-                t['trackpoints'] = Utilities.hex2dec(track[14:16] + track[12:14])
-                t['duration'] = Utilities.hex2dec(track[20:22] + track[18:20] + track[16:18])
-                t['laps'] = Utilities.hex2dec(track[30:34])
-                t['id'] = Utilities.hex2dec(track[38:42])
-                t['distance'] = Utilities.hex2dec(track[28:30] + track[26:28] + track[24:26])
-                t['calories'] = 0   #Utilities.hex2dec(track[28:32])
-                t['topspeed'] = 0   #Utilities.hex2dec(track[36:44])
-
-            #~ print 'raw track: ' + str(track)
-            print "%02i %s %08i %08i %08i %08i %04i" % \
-                (t['id'], str(t['date']), t['distance'], t['duration'],
-                 t['topspeed'], t['trackpoints'], t['laps'])
-
-        return tracks
-
+        return
 
     def read_laps(self):
         self.write_serial('requestNextTrackSegment')
@@ -430,38 +521,78 @@ class GB580(Serial):
         while offset <= len(data) - TRACK_LAP_LEN:
             tl = TrackLap()
             offset += tl.process_lap(data[offset:])
-            self.laps.append(tl)
+            self.track_laps.append(tl)
 
         if DEBUG:
-            print len(self.laps)
-        return len(self.laps)
-
+            print len(self.track_laps)
+        return len(self.track_laps)
 
     def read_trackpoints(self):
         self.write_serial('requestNextTrackSegment')
-        #data = "8007F80E0A1D122A2C3607649800001E760000080000003E00550026E1C102F588330187000000C10600005D000000160000004B000000000000000000000000000000870000006E0700005E0000001400000050000000000000000000000000000000870000003C0700006000000015000000500000000000000000000000000000008700000077070000600000001400000051000000000000000000000000000000870000007907000061000000150000004E000000000000000000000000000000870000003707000063000000140000004F000000000000000000000000000000870000004307000066000000160000004F000000000000000000000000000000870000002307000068000000150000004D000000000000000000000000000000870000002C0700006A000000140000005100000000000000000000000000000087000000480700006C000000150000005000000000000000000000000000000087000000170700006D000000140000004D00000000000000000000000000000087000000010700006F000000140000004C000000000000000000000000000000870000000307000071000000150000004E0000000000000000000000000000008700000087070000720000001400000051000000000000000000000000000000870000009C07000071000000140000005300000000000000000000000000000087000000CE07000071000000160000005400000000000000000000000000000087000000EF0700007200000014000000570000000000000000000000000000008700000006080000720000001500000058000000000000000000000000000000870000000E080000720000001400000058000000000000000000000000000000870000002D080000720000001500000059000000000000000000000000000000870000000E0800007200000014000000580000000000000000000000000000008700000018080000730000001500000059000000000000000000000000000000870000001408000071000000140000005800000000000000000000000000000087000000F8070000700000001700000057000000000000000000000000000000870000000108000071000000140000005800000000000000000000000000000087000000F807000072000000140000005700000000000000000000000000000087000000F6070000730000001500000057000000000000000000000000000000870000003E08000074000000150000005A000000000000000000000000000000870000008C08000075000000140000005E000000000000000000000000000000870000009608000076000000140000005E000000000000000000000000000000870000007E08000077000000150000005C000000000000000000000000000000870000006008000079000000150000005D00000000000000000000000000000087000000A20800007A000000140000005E00000000000000000000000000000087000000990800007B000000140000005F000000000000000000000000000000870000008C0800007C000000150000005D000000000000000000000000000000870000006E0800007C000000140000005C00000000000000000000000000000087000000530800007B000000150000005B000000000000000000000000000000870000005E0800007B000000140000005D00000000000000000000000000000087000000600800007A000000150000005C00000000000000000000000000000087000000660800007A000000140000005C000000000000000000000000000000870000006808000079000000160000005C000000000000000000000000000000870000006208000079000000150000005C000000000000000000000000000000870000007008000079000000140000005C000000000000000000000000000000870000008008000079000000150000005D000000000000000000000000000000870000007708000079000000140000005D000000000000000000000000000000870000008A08000079000000150000005E000000000000000000000000000000870000006808000079000000140000005C000000000000000000000000000000870000005608000079000000140000005B000000000000000000000000000000870000007208000079000000140000005C000000000000000000000000000000870000008808000079000000150000005D000000000000000000000000000000870000008208000078000000150000005D000000000000000000000000000000870000008208000078000000150000005D000000000000000000000000000000870000006808000078000000150000005B000000000000000000000000000000870000007608000079000000150000005C000000000000000000000000000000870000006808000078000000150000005C000000000000000000000000000000870000007708000078000000150000005D000000000000000000000000000000870000006808000079000000140000005C000000000000000000000000000000870000007808000079000000150000005D000000000000000000000000000000870000007408000078000000150000005C000000000000000000000000000000870000007008000078000000150000005C000000000000000000000000000000870000008208000078000000160000005D000000000000000000000000000000870000006E08000078000000160000005C000000000000000000000000000000870000005408000078000000150000005B000000000000005F"
         while True:
             data = self.read_serial(2075)
-            time.sleep(1)
             # chop off first 3 bytes, status + # of bytes received
             data = data[6:]
 
+            # Process this chunk of data received,
+            # contains a header and 0..SECTION_LEN trackpoints
             offset = TRACK_HEADER_LEN
             while offset <= len(data) - TRACK_POINT_LEN:
                 tp = TrackPoint()
-                offset += tp.process_trackpoint(data[offset:])
+                self.act_time = tp.process_trackpoint(data[offset:], self.act_time)
                 self.track_points.append(tp)
+                offset += TRACK_POINT_LEN
+                if len(self.track_points) % 100 == 0:
+                    sys.stdout.write(".")
+                if len(self.track_points) % (80*100) == 0:
+                    sys.stdout.write("\n")
 
             if len(data) - 2 == SECTION_LEN: # last 2 bytes are status
                 self.write_serial('requestNextTrackSegment')
-                #data = "8002780E0A1D122A2C3607649800001E7600000800230735075500000000000000000086000000160800008A0000001400000059000000000000000000000000000000860000002608000089000000160000005900000000000000000000000000000086000000190800008A0000001500000058000000000000000000000000000000860000001A0800008A000000160000005900000000000000000000000000000086000000240800008B000000150000005900000000000000000000000000000086000000260800008B0000001500000059000000000000000000000000000000860000002B0800008B000000150000005900000000000000000000000000000086000000110800008B000000150000005800000000000000000000000000000086000000130800008B000000150000005800000000000000000000000000000086000000150800008B000000160000005800000000000000000000000000000086000000150800008B000000150000005900000000000000000000000000000086000000220800008B000000150000005900000000000000000000000000000086000000330800008B000000150000005A000000000000000000000000000000860000002D0800008C000000160000005900000000000000000000000000000086000000290800008C0000001500000059000000000000000000000000000000860000002F0800008C000000160000005900000000000000000000000000000086000000260800008D000000150000005900000000000000000000000000000086000000220800008D000000150000005900000000000000000000000000000086000000220800008D000000050000005700000000000000C9"
             else:
                 break
+        sys.stdout.write("\n")
         if DEBUG:
             print len(self.track_points)
-
         return len(self.track_points)
 
+    def write_gpx_header(self, outputfile):
+        self.__outputfile = output_file
+        #Write GPX header
+        #Creator set to Garmin Edge 800 so that Strava accepts
+        # barometric altitude datae
+        print >> self.__outputfile, \
+            '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>'
+        print >> self.__outputfile, """
+<gpx version="1.1"
+creator="Garmin Edge 800"
+xmlns="http://www.topografix.com/GPX/1/1"
+xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+
+  <metadata>
+    <link href="https://github.com/kgkilo/gb580">
+      <text>gb580.py</text>
+    </link>
+  </metadata>
+
+  <trk>
+    <trkseg>
+"""
+
+    def write_track(self):
+        for lap in self.track_laps:
+            print >> self.__outputfile, lap.write_gpx()
+        for pt in self.track_points:
+            print >> self.__outputfile, pt.write_gpx()
+
+        #Finish writing GPX file
+        print >> self.__outputfile,"""
+    </trkseg>
+  </trk>
+</gpx>
+"""
 
 
 def parsedecisec(dsec):
@@ -506,20 +637,20 @@ if __name__=="__main__":
 ommited, use /dev/ttyACM0... Find out with dmesg")
 
     gb = GB580()
-    #h = "25020000CE0D0000997E0E000D004C0052005800650000000000030200000000"
-    #gb.trackpoint_from_hex(h)
-    #exit(0)
-    #test run
     print 'Opening serial port at /dev/ttyACM0, 57600 bauds...'
     serial = serial.Serial(port='/dev/ttyACM0', baudrate='57600',
         timeout=2)
 
-    gb.get_model()
-    tracks = gb.read_track_list()
-    for track in tracks:
-        track_id = Utilities.hex2dec(track[38:42])
-        print track_id
-    track = gb.read_track([29])
-    gb.read_laps()
-    gb.read_trackpoints()
-    #print track
+    gb.get_model()                  # Just for info
+    tracks = gb.read_tracklist()    # List all tracks in memory
+    track = gb.read_track(29)       # Read one track
+    gb.read_laps()                  # Read the track laps
+    gb.read_trackpoints()           # Read the trackpoints
+
+    root_filename = gb.get_startdate()
+    output_filename = root_filename + '.gpx'
+    output_file = open(output_filename, 'w')
+    print "Creating file {0}".format(output_filename)
+    gb.write_gpx_header(output_filename)
+    gb.write_track()
+    output_file.close()
