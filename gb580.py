@@ -123,7 +123,7 @@ class Utilities():
     def read_datetime(self, hex, timezone):
         return datetime.datetime(2000 + self.hex2dec(hex[0:2]),
             self.hex2dec(hex[2:4]), self.hex2dec(hex[4:6]),
-            self.hex2dec(hex[6:8]), self.hex2dec(hex[8:10]),
+            self.hex2dec(hex[6:8]) - 2, self.hex2dec(hex[8:10]),
             self.hex2dec(hex[10:12]), tzinfo=timezone)
 
 
