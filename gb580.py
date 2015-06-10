@@ -24,6 +24,7 @@ from pytz import timezone, utc
 from decimal import Decimal
 from dateutil import parser #needs python-dateutil on Ubuntu
 from datetime import timedelta
+import getopt
 
 DEBUG = False
 TRACK_HEADER_LEN = 48   # 24bytes
@@ -386,7 +387,8 @@ class GB580(Serial):
         'unknown'                         : '0200018382'
     }
 
-    def __init__(self):
+    def __init__(self, opts):
+        self.opts = opts
         self.track_laps = []
         self.track_points = []
 
@@ -607,7 +609,9 @@ def parsedecisec(dsec):
     return '%2.2d:%2.2d:%2.2d.%1d' % (hours, minutes, seconds, dseconds)
 
 
-usage = '''
+def usage():
+    '''Prints default usage help'''
+    print """
 Usage: gb580.py [-fi <input-format>] [-fo <output format>] convert <infile> <outfile>
                 [-d <device>] list
                 [-d <device>] [-fo <output format>] extract <outfile>
@@ -624,26 +628,62 @@ Usage: gb580.py [-fi <input-format>] [-fo <output format>] convert <infile> <out
 
 
 if __name__=="__main__":
-    parser = optparse.OptionParser()
-    parser.add_option("-f", "--output-format", dest="output-format", default="FCX",
-                      help="Output format. If ommited, 'FCX'")
-    parser.add_option("-F", "--input-format", dest="input-format", default="stdin",
-                      help="Use <filename> as input file. If ommited, use stdin.",
-                      metavar="FILE")
-    parser.add_option("-o", "--output", dest="output", default="stdout",
-                      help="Use <filename> as output file. If ommited, use stdout.",
-                      metavar="FILE")
-    parser.add_option("-i", "--input", dest="input", default="stdin",
-                      help="Use <filename> as output file. If ommited, use the device itself",
-                      metavar="FILE")
-    parser.add_option("-d", "--device", dest="device", default="/dev/ttyACM0",
-                      help="Use <device> as serial port for the GB850P, if \
-ommited, use /dev/ttyACM0... Find out with dmesg")
+    #~ parser = optparse.OptionParser()
+    #~ parser.add_option("-f", "--output-format", dest="output-format", default="FCX",
+                      #~ help="Output format. If ommited, 'FCX'")
+    #~ parser.add_option("-F", "--input-format", dest="input-format", default="stdin",
+                      #~ help="Use <filename> as input file. If ommited, use stdin.",
+                      #~ metavar="FILE")
+    #~ parser.add_option("-o", "--output", dest="output", default="stdout",
+                      #~ help="Use <filename> as output file. If ommited, use stdout.",
+                      #~ metavar="FILE")
+    #~ parser.add_option("-i", "--input", dest="input", default="stdin",
+                      #~ help="Use <filename> as output file. If ommited, use the device itself",
+                      #~ metavar="FILE")
+    #~ parser.add_option("-d", "--device", dest="device", default="/dev/ttyACM0",
+                      #~ help="Use <device> as serial port for the GB850P, if \
+#~ ommited, use /dev/ttyACM0... Find out with dmesg")
 
-    gb = GB580()
-    print 'Opening serial port at /dev/ttyACM0, 57600 bauds...'
-    serial = serial.Serial(port='/dev/ttyACM0', baudrate='57600',
-        timeout=2)
+    try:
+        ops, args = getopt.getopt(sys.argv[1:],
+            "ha",
+            ["help", "noalti", "noext",
+            "nopower", "notemp"])
+    except getopt.GetoptError, err:
+        # print help information and exit:
+        print str(err) # will print something like "option -a not recognized"
+        usage()
+        sys.exit(2)
+
+    #~ if not sys.argv[1:]:
+        #~ usage()
+        #~ sys.exit(2)
+
+    #Parse command-line options
+    opts = {'noalti':False,
+            'noext':False,
+            'nopower':False,
+            'notemp':False}
+
+    for option, arg in ops:
+        if option in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif option in ("-n", "--noalti"):
+            opts['noalti'] = True
+        elif option in ("--noext"):
+            opts['noext'] = True
+        elif option in ("--nopower"):
+            opts['nopower'] = True
+        elif option in ("--notemp"):
+            opts['notemp'] = True
+        else:
+            assert False, "unhandled option"
+
+    gb = GB580(opts)
+    print 'Opening serial port at /dev/ttyACM0, 115200 bauds...'
+    serial = serial.Serial(port='/dev/ttyACM0', baudrate='115200',
+        timeout=2) #57600
 
     gb.get_model()                  # Just for info
     tracks = gb.read_tracklist()    # List all tracks in memory
