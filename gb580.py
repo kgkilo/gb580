@@ -12,6 +12,10 @@ Redistribute or modify under the terms of the GPLv3. See
 Most of it is based on for another Globalsat model, GH-615, written
 originally by speigei@gmail.com. See http://code.google.com/p/gh615/
 
+For a normal user to be able to access the serial port, add the user
+to the ""dialout" group:
+sudo usermod -aG dialout USERNAME
+
 '''
 
 import sys
