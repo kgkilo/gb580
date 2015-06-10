@@ -204,7 +204,7 @@ class TrackPoint:
                 self.cadence, self.power_cad, self.power)
         return act_time
 
-    def extension(self, temp):
+    def extension_gpx(self, temp):
         '''Compiles the GPX extension part of a trackpoint'''
         #if self.__opts['noext']:
         #    return ""
@@ -262,18 +262,26 @@ class TrackPoint:
 
         return ret
 
-
-    def write_gpx(self):
+    def write_gpx(self, noalti):
         '''Writes the data to a GPX trackpoint structure'''
         temperature = None
-        ret = \
-"""
+
+        if 'noalti' is True:
+            ret = """
+<trkpt lat="{latitude}" lon="{longitude}"><time>{time}</time><speed>{speed}</speed>
+    {extension}
+</trkpt>
+""".format(latitude=self.latitude, longitude=self.longitude,
+           time=self.timestamp, speed=self.speed,
+           extension=self.extension_gpx(temperature))
+        else:
+            ret = """
 <trkpt lat="{latitude}" lon="{longitude}"><ele>{altitude}</ele><time>{time}</time><speed>{speed}</speed>
     {extension}
 </trkpt>
 """.format(latitude=self.latitude, longitude=self.longitude,
             altitude=self.altitude, time=self.timestamp, speed=self.speed,
-            extension=self.extension(temperature))
+            extension=self.extension_gpx(temperature))
         return ret
 
 
@@ -365,6 +373,9 @@ class TrackLap:
         return TRACK_LAP_LEN
 
     def write_gpx(self):
+        return ""
+
+    def finish_gpx(self):
         return ""
 
 
@@ -587,12 +598,13 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
     <trkseg>
 """
 
-    def write_track(self):
+    def write_gpx_track(self):
         for lap in self.track_laps:
             print >> self.__outputfile, lap.write_gpx()
         for pt in self.track_points:
-            print >> self.__outputfile, pt.write_gpx()
+            print >> self.__outputfile, pt.write_gpx(self.opts['noalti'])
 
+    def write_gpx_footer(self):
         #Finish writing GPX file
         print >> self.__outputfile,"""
     </trkseg>
@@ -696,5 +708,6 @@ if __name__=="__main__":
     output_file = open(output_filename, 'w')
     print "Creating file {0}".format(output_filename)
     gb.write_gpx_header(output_filename)
-    gb.write_track()
+    gb.write_gpx_track()
+    gb.write_gpx_footer()
     output_file.close()
