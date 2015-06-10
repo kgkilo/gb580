@@ -561,7 +561,8 @@ class GB580(Serial):
                 offset += TRACK_POINT_LEN
                 if len(self.track_points) % 100 == 0:
                     sys.stdout.write(".")
-                if len(self.track_points) % (80*100) == 0:
+                    sys.stdout.flush()
+                if len(self.track_points) % (72*100) == 0:
                     sys.stdout.write("\n")
 
             if len(data) - 2 == SECTION_LEN: # last 2 bytes are status
