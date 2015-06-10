@@ -625,64 +625,37 @@ def parsedecisec(dsec):
 def usage():
     '''Prints default usage help'''
     print """
-Usage: gb580.py [-fi <input-format>] [-fo <output format>] convert <infile> <outfile>
-                [-d <device>] list
-                [-d <device>] [-fo <output format>] extract <outfile>
-
-                [-i <input file>] [-d <device>] [-fi <input-format>] [-fo <output-format>]
-                [-
-                [-i <inputfile>] [-O
-<outputfile>]
-       formats: GPX FCX ACT
-       if format is ommited, FCX is select by default
-       if input file is ommited, the device is used
-       if output file is ommited, stdout is used
-
-act2gpx [--noalti] [--noext] [--nopower] [--notemp] filename
-Creates a file filename.gpx in GPX format from filename in Sportek TTS .act XML format.
-If option --noalti is given, elevation will be not be set. Otherwise, elevation is retrieved from barometric altimeter information.
-If option --noext is given, extended data (heartrate, temperature, cadence, power) will not generated. Useful for instance if size of output file matters.
-If option --nopower is given, power data will not be inserted in the extended dataset.
+Usage: gb580.py [-f <output format>]
+                   formats: GPX TCX; if format is ommited, GPX is selected by default
+                [-o <outfile>] If output file is ommited, a file named as the workout date is generated
+                [--noalti] Elevation will be not be set. Otherwise, elevation is retrieved from barometric altimeter information.
+                [--noext] Extended data (heartrate, temperature, cadence, power) will not be generated. Useful for instance if size of output file matters.
+                [--nopower] Power data will not be inserted in the extended dataset.
+                [--notemp] Temperature data will not be inserted in the extended dataset.
+                [-d, --device] Serial port to use, default: /dev/ttyACM0
 """
 
 
 if __name__=="__main__":
-    #~ parser = optparse.OptionParser()
-    #~ parser.add_option("-f", "--output-format", dest="output-format", default="FCX",
-                      #~ help="Output format. If ommited, 'FCX'")
-    #~ parser.add_option("-F", "--input-format", dest="input-format", default="stdin",
-                      #~ help="Use <filename> as input file. If ommited, use stdin.",
-                      #~ metavar="FILE")
-    #~ parser.add_option("-o", "--output", dest="output", default="stdout",
-                      #~ help="Use <filename> as output file. If ommited, use stdout.",
-                      #~ metavar="FILE")
-    #~ parser.add_option("-i", "--input", dest="input", default="stdin",
-                      #~ help="Use <filename> as output file. If ommited, use the device itself",
-                      #~ metavar="FILE")
-    #~ parser.add_option("-d", "--device", dest="device", default="/dev/ttyACM0",
-                      #~ help="Use <device> as serial port for the GB850P, if \
-#~ ommited, use /dev/ttyACM0... Find out with dmesg")
-
     try:
         ops, args = getopt.getopt(sys.argv[1:],
-            "ha",
-            ["help", "noalti", "noext",
-            "nopower", "notemp"])
+            "hf:o:aeptd",
+            ["help", "output-format=", "output=",
+            "noalti", "noext", "nopower", "notemp", "device"])
     except getopt.GetoptError, err:
         # print help information and exit:
         print str(err) # will print something like "option -a not recognized"
         usage()
         sys.exit(2)
 
-    #~ if not sys.argv[1:]:
-        #~ usage()
-        #~ sys.exit(2)
-
     #Parse command-line options
     opts = {'noalti':False,
             'noext':False,
             'nopower':False,
-            'notemp':False}
+            'notemp':False,
+            'output-format':'gpx',
+            'output':None,
+            'device':'/dev/ttyACM0'}
 
     for option, arg in ops:
         if option in ("-h", "--help"):
@@ -696,12 +669,18 @@ if __name__=="__main__":
             opts['nopower'] = True
         elif option in ("--notemp"):
             opts['notemp'] = True
+        elif option in ("-f", "--output-format"):
+            opts['output-format'] = arg
+        elif option in ("-o", "--output"):
+            opts['output'] = arg
+        elif option in ("-d", "--device"):
+            opts['device'] = arg
         else:
             assert False, "unhandled option"
 
     gb = GB580(opts)
-    print 'Opening serial port at /dev/ttyACM0, 115200 bauds...'
-    serial = serial.Serial(port='/dev/ttyACM0', baudrate='115200',
+    print 'Opening serial port at %s, 115200 bauds...' % opts['device']
+    serial = serial.Serial(port=opts['device'], baudrate='115200',
         timeout=2) #57600
 
     gb.get_model()                  # Just for info
@@ -710,7 +689,10 @@ if __name__=="__main__":
     gb.read_laps()                  # Read the track laps
     gb.read_trackpoints()           # Read the trackpoints
 
-    root_filename = gb.get_startdate()
+    if opts['output'] is not None:
+        root_filename = opts['output']
+    else:
+        root_filename = gb.get_startdate()
     output_filename = root_filename + '.gpx'
     output_file = open(output_filename, 'w')
     print "Creating file {0}".format(output_filename)
