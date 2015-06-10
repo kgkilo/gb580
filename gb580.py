@@ -637,7 +637,13 @@ Usage: gb580.py [-fi <input-format>] [-fo <output format>] convert <infile> <out
        if format is ommited, FCX is select by default
        if input file is ommited, the device is used
        if output file is ommited, stdout is used
-'''
+
+act2gpx [--noalti] [--noext] [--nopower] [--notemp] filename
+Creates a file filename.gpx in GPX format from filename in Sportek TTS .act XML format.
+If option --noalti is given, elevation will be not be set. Otherwise, elevation is retrieved from barometric altimeter information.
+If option --noext is given, extended data (heartrate, temperature, cadence, power) will not generated. Useful for instance if size of output file matters.
+If option --nopower is given, power data will not be inserted in the extended dataset.
+"""
 
 
 if __name__=="__main__":
