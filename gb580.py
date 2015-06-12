@@ -614,7 +614,21 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 """
 
     def write_tcx_header(self, outputfile):
-        return ""
+        '''Write TCX file header'''
+        self.__outputfile = outputfile
+        print >> self.__outputfile, """
+<?xml version="1.0" encoding="UTF8" standalone="no" ?>
+
+<TrainingCenterDatabase
+  xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  "http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
+
+  <Activities>
+    <Activity Sport="Biking">
+      <Id>{starttime}</Id>"
+""".format(starttime=self.start_time)
 
     def write_gpx_track(self):
         for lap in self.track_laps:
@@ -623,6 +637,8 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
             print >> self.__outputfile, pt.write_gpx(self.opts['noalti'])
 
     def write_tcx_track(self):
+        for lap in self.track_laps:
+            print >> self.__outputfile, lap.write_tcx(self.track_points, self.opts)
         return ""
 
     def write_gpx_footer(self):
@@ -634,7 +650,11 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 """
 
     def write_tcx_footer(self):
-        return ""
+        print >> self.__outputfile, """
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>
+"""
 
 
 def parsedecisec(dsec):
