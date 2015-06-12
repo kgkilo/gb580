@@ -262,6 +262,10 @@ class TrackPoint:
 
         return ret
 
+    def extension_tcx(self, temp):
+        '''Compiles the TCX extension part of a trackpoint'''
+        return ""
+
     def write_gpx(self, noalti):
         '''Writes the data to a GPX trackpoint structure'''
         temperature = None
@@ -283,6 +287,10 @@ class TrackPoint:
             altitude=self.altitude, time=self.timestamp, speed=self.speed,
             extension=self.extension_gpx(temperature))
         return ret
+
+    def write_tcx(self, noalti):
+        '''Writes the data to a TCX trackpoint structure'''
+        return ""
 
 
 class TrackLap:
@@ -375,7 +383,13 @@ class TrackLap:
     def write_gpx(self):
         return ""
 
+    def write_tcx(self):
+        return ""
+
     def finish_gpx(self):
+        return ""
+
+    def finish_tcx(self):
         return ""
 
 
@@ -599,11 +613,17 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
     <trkseg>
 """
 
+    def write_tcx_header(self, outputfile):
+        return ""
+
     def write_gpx_track(self):
         for lap in self.track_laps:
             print >> self.__outputfile, lap.write_gpx()
         for pt in self.track_points:
             print >> self.__outputfile, pt.write_gpx(self.opts['noalti'])
+
+    def write_tcx_track(self):
+        return ""
 
     def write_gpx_footer(self):
         #Finish writing GPX file
@@ -612,6 +632,9 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
   </trk>
 </gpx>
 """
+
+    def write_tcx_footer(self):
+        return ""
 
 
 def parsedecisec(dsec):
