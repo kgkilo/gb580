@@ -383,14 +383,41 @@ class TrackLap:
     def write_gpx(self):
         return ""
 
-    def write_tcx(self):
-        return ""
+    def write_tcx(self, trackpoints, opts):
+        '''Write lap info to TCX file'''
+        ret = """
+      <Lap StartTime="{starttime}">
+        <TotalTimeSeconds>{totaltime}</TotalTimeSeconds>
+        <DistanceMeters>{distance}</DistanceMeters>
+        <MaximumSpeed>{maxspeed}</MaximumSpeed>
+        <AverageHeartRateBpm><Value>{avghr}</Value></AverageHeartRateBpm>
+        <MaximumHeartRateBpm><Value>{maxhr}</Value></MaximumHeartRateBpm>
+        <Cadence>{avgcad}</Cadence>
+        <Calories>0</Calories>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
+
+        <Track>
+""".format(starttime=self.end_time - self.lap_time,
+            totaltime=self.lap_time, distance=self.distance,
+            maxspeed=self.max_speed, avghr=self.avg_hr,
+            maxhr=self.max_hr, avgcad=self.avg_cadence)
+
+        '''Write all points'''
+        for pt in trackpoints:
+            ret += pt.write_tcx(opts['noalti'])
+
+        return ret
 
     def finish_gpx(self):
         return ""
 
     def finish_tcx(self):
-        return ""
+        '''Write lap ending secions to TCX file'''
+        return """
+        </Track>
+      </Lap>
+"""
 
 
 class GB580(Serial):
@@ -639,6 +666,7 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
     def write_tcx_track(self):
         for lap in self.track_laps:
             print >> self.__outputfile, lap.write_tcx(self.track_points, self.opts)
+            print >> self.__outputfile, lap.finish_tcx()
         return ""
 
     def write_gpx_footer(self):
@@ -651,6 +679,12 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 
     def write_tcx_footer(self):
         print >> self.__outputfile, """
+      <Creator xsi:type="Device_t">
+        <Name>https://github.com/kgkilo/gb580</Name>
+        <UnitId>0</UnitId>
+        <ProductID>0</ProductID>
+      </Creator>
+
     </Activity>
   </Activities>
 </TrainingCenterDatabase>
