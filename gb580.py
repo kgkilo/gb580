@@ -290,7 +290,37 @@ class TrackPoint:
 
     def write_tcx(self, noalti):
         '''Writes the data to a TCX trackpoint structure'''
-        return ""
+        temperature = None
+
+        if 'noalti' is True:
+            ret = """
+"""
+        else:
+            ret = """
+  <Trackpoint>
+    <Time>{time}</Time>
+    <Position>
+      <LatitudeDegrees>{latitude}</LatitudeDegrees>
+      <LongitudeDegrees>{longitude}</LongitudeDegrees>
+    </Position>
+    <AltitudeMeters>{altitude}</AltitudeMeters>
+
+    <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
+    <Cadence>{cadence}</Cadence>
+    <Extensions>
+      <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+        <Speed>{speed}</Speed>
+        <Power>{power}</Power>
+      </TPX>
+    </Extensions>
+  </Trackpoint>
+""".format(time=self.timestamp, latitude=self.latitude,
+            longitude=self.longitude, altitude=self.altitude,
+            hr=self.hr, cadence=self.cadence,
+            speed=self.speed, power=self.power
+            #extension=self.extension_tcx(temperature)
+            )
+        return ret
 
 
 class TrackLap:
@@ -643,8 +673,8 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
     def write_tcx_header(self, outputfile):
         '''Write TCX file header'''
         self.__outputfile = outputfile
-        print >> self.__outputfile, """
-<?xml version="1.0" encoding="UTF8" standalone="no" ?>
+        print >> self.__outputfile, \
+            """<?xml version="1.0" encoding="UTF8" standalone="no" ?>
 
 <TrainingCenterDatabase
   xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
@@ -654,8 +684,8 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 
   <Activities>
     <Activity Sport="Biking">
-      <Id>{starttime}</Id>"
-""".format(starttime=self.start_time)
+    <Id>{starttime}</Id>
+""".format(starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     def write_gpx_track(self):
         for lap in self.track_laps:
