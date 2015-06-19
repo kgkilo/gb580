@@ -413,24 +413,24 @@ class TrackLap:
     def write_gpx(self):
         return ""
 
-    def write_tcx(self, trackpoints, opts):
+    def write_tcx(self, start_time, trackpoints, opts):
         '''Write lap info to TCX file'''
         ret = """
-      <Lap StartTime="{starttime}">
-        <TotalTimeSeconds>{totaltime}</TotalTimeSeconds>
-        <DistanceMeters>{distance}</DistanceMeters>
-        <MaximumSpeed>{maxspeed}</MaximumSpeed>
-        <AverageHeartRateBpm><Value>{avghr}</Value></AverageHeartRateBpm>
-        <MaximumHeartRateBpm><Value>{maxhr}</Value></MaximumHeartRateBpm>
-        <Cadence>{avgcad}</Cadence>
-        <Calories>0</Calories>
-        <Intensity>Active</Intensity>
-        <TriggerMethod>Manual</TriggerMethod>
+    <Lap StartTime="{starttime}">
+      <TotalTimeSeconds>{totaltime}</TotalTimeSeconds>
+      <DistanceMeters>{distance}</DistanceMeters>
+      <MaximumSpeed>{maxspeed}</MaximumSpeed>
+      <AverageHeartRateBpm><Value>{avghr}</Value></AverageHeartRateBpm>
+      <MaximumHeartRateBpm><Value>{maxhr}</Value></MaximumHeartRateBpm>
+      <Cadence>{avgcad}</Cadence>
+      <Calories>0</Calories>
+      <Intensity>Active</Intensity>
+      <TriggerMethod>Manual</TriggerMethod>
 
-        <Track>
-""".format(starttime=self.end_time - self.lap_time,
-            totaltime=self.lap_time, distance=self.distance,
-            maxspeed=self.max_speed, avghr=self.avg_hr,
+      <Track>
+""".format(starttime=(start_time + timedelta(seconds = self.end_time - self.lap_time)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            totaltime=self.lap_time, distance=self.distance * 1.0,
+            maxspeed=self.max_speed * 1000.0, avghr=self.avg_hr,
             maxhr=self.max_hr, avgcad=self.avg_cadence)
 
         '''Write all points'''
@@ -695,7 +695,7 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 
     def write_tcx_track(self):
         for lap in self.track_laps:
-            print >> self.__outputfile, lap.write_tcx(self.track_points, self.opts)
+            print >> self.__outputfile, lap.write_tcx(self.start_time, self.track_points, self.opts)
             print >> self.__outputfile, lap.finish_tcx()
         return ""
 
