@@ -262,9 +262,44 @@ class TrackPoint:
 
         return ret
 
-    def extension_tcx(self, temp):
-        '''Compiles the TCX extension part of a trackpoint'''
-        return ""
+    def extension_tcx(self):
+        '''Compiles the TCX extension part of a trackpoint.
+
+        Unlike GPX, temperature is not included in a TCX file
+        '''
+
+        extension_found = False
+
+        spd_ext = ""
+        if (self.speed is not None):
+            extension_found = True
+            spd_ext = "<Speed>{spd}</Speed>".format(spd=self.speed)
+
+        pow_ext = ""
+        #if ((not self.__opts['nopower']) and (power is not None)):
+        if (self.power is not None):
+            extension_found = True
+            pow_ext = "<Power>{pwr}</Power>".format(pwr=self.power)
+
+        if not extension_found:
+            return ""
+
+        #Compose return string
+        ret = """<Extensions>
+          <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">"""
+
+        if pow_ext != "":
+            ret += """
+            {powext}""".format(powext=pow_ext)
+
+        if spd_ext != "":
+            ret += """
+            {spdext}""".format(spdext=spd_ext)
+
+        ret += """
+          </TPX>
+        </Extensions>"""
+        return ret
 
     def write_gpx(self, noalti):
         '''Writes the data to a GPX trackpoint structure'''
@@ -289,36 +324,47 @@ class TrackPoint:
         return ret
 
     def write_tcx(self, noalti):
-        '''Writes the data to a TCX trackpoint structure'''
-        temperature = None
+        '''Writes the data to a TCX trackpoint structure
+
+        Unlike GPX, temperature is not included in a TCX file
+        '''
 
         if 'noalti' is True:
             ret = """
-"""
+      <Trackpoint>
+        <Time>{time}</Time>
+        <Position>
+          <LatitudeDegrees>{latitude}</LatitudeDegrees>
+          <LongitudeDegrees>{longitude}</LongitudeDegrees>
+        </Position>
+
+        <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
+        <Cadence>{cadence}</Cadence>
+        {extension}
+      </Trackpoint>
+""".format(time=self.timestamp, latitude=self.latitude,
+            longitude=self.longitude, hr=self.hr,
+            cadence=self.cadence, extension=self.extension_tcx()
+            )
+
         else:
             ret = """
-  <Trackpoint>
-    <Time>{time}</Time>
-    <Position>
-      <LatitudeDegrees>{latitude}</LatitudeDegrees>
-      <LongitudeDegrees>{longitude}</LongitudeDegrees>
-    </Position>
-    <AltitudeMeters>{altitude}</AltitudeMeters>
+      <Trackpoint>
+        <Time>{time}</Time>
+        <Position>
+          <LatitudeDegrees>{latitude}</LatitudeDegrees>
+          <LongitudeDegrees>{longitude}</LongitudeDegrees>
+        </Position>
+        <AltitudeMeters>{altitude}</AltitudeMeters>
 
-    <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
-    <Cadence>{cadence}</Cadence>
-    <Extensions>
-      <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
-        <Speed>{speed}</Speed>
-        <Power>{power}</Power>
-      </TPX>
-    </Extensions>
-  </Trackpoint>
+        <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
+        <Cadence>{cadence}</Cadence>
+        {extension}
+      </Trackpoint>
 """.format(time=self.timestamp, latitude=self.latitude,
             longitude=self.longitude, altitude=self.altitude,
             hr=self.hr, cadence=self.cadence,
-            speed=self.speed, power=self.power
-            #extension=self.extension_tcx(temperature)
+            extension=self.extension_tcx()
             )
         return ret
 
