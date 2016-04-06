@@ -868,14 +868,20 @@ if __name__=="__main__":
         root_filename = opts['output']
     else:
         root_filename = gb.get_startdate()
-    output_filename = root_filename + '.gpx'
-    #~ output_filename = root_filename + '.tcx'
-    output_file = open(output_filename, 'w')
-    print "Creating file {0}".format(output_filename)
-    gb.write_gpx_header(output_file)
-    gb.write_gpx_track()
-    gb.write_gpx_footer()
-    #~ gb.write_tcx_header(output_file)
-    #~ gb.write_tcx_track()
-    #~ gb.write_tcx_footer()
-    output_file.close()
+
+    if opts['output-format'] == 'gpx':
+        output_filename = root_filename + '.gpx'
+        output_file = open(output_filename, 'w')
+        print "Creating file {0}".format(output_filename)
+        gb.write_gpx_header(output_file)
+        gb.write_gpx_track()
+        gb.write_gpx_footer()
+        output_file.close()
+    elif opts['output-format'] == 'tcx':
+        output_filename = root_filename + '.tcx'
+        output_file = open(output_filename, 'w')
+        print "Creating file {0}".format(output_filename)
+        gb.write_tcx_header(output_file)
+        gb.write_tcx_track()
+        gb.write_tcx_footer()
+        output_file.close()
