@@ -287,19 +287,19 @@ class TrackPoint:
 
         #Compose return string
         ret = """<Extensions>
-          <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">"""
+              <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">"""
 
         if pow_ext != "":
             ret += """
-            {powext}""".format(powext=pow_ext)
+                {powext}""".format(powext=pow_ext)
 
         if spd_ext != "":
             ret += """
-            {spdext}""".format(spdext=spd_ext)
+                {spdext}""".format(spdext=spd_ext)
 
         ret += """
-          </TPX>
-        </Extensions>"""
+              </TPX>
+            </Extensions>"""
         return ret
 
     def write_gpx(self, noalti):
@@ -332,17 +332,17 @@ class TrackPoint:
 
         if 'noalti' is True:
             ret = """
-      <Trackpoint>
-        <Time>{time}</Time>
-        <Position>
-          <LatitudeDegrees>{latitude}</LatitudeDegrees>
-          <LongitudeDegrees>{longitude}</LongitudeDegrees>
-        </Position>
-
-        <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
-        <Cadence>{cadence}</Cadence>
-        {extension}
-      </Trackpoint>
+          <Trackpoint>
+            <Time>{time}</Time>
+            <Position>
+              <LatitudeDegrees>{latitude}</LatitudeDegrees>
+              <LongitudeDegrees>{longitude}</LongitudeDegrees>
+            </Position>
+            <DistanceMeters>0.0</DistanceMeters>
+            <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
+            <Cadence>{cadence}</Cadence>
+            {extension}
+          </Trackpoint>
 """.format(time=self.timestamp, latitude=self.latitude,
             longitude=self.longitude, hr=self.hr,
             cadence=self.cadence, extension=self.extension_tcx()
@@ -350,18 +350,18 @@ class TrackPoint:
 
         else:
             ret = """
-      <Trackpoint>
-        <Time>{time}</Time>
-        <Position>
-          <LatitudeDegrees>{latitude}</LatitudeDegrees>
-          <LongitudeDegrees>{longitude}</LongitudeDegrees>
-        </Position>
-        <AltitudeMeters>{altitude}</AltitudeMeters>
-
-        <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
-        <Cadence>{cadence}</Cadence>
-        {extension}
-      </Trackpoint>
+          <Trackpoint>
+            <Time>{time}</Time>
+            <Position>
+              <LatitudeDegrees>{latitude}</LatitudeDegrees>
+              <LongitudeDegrees>{longitude}</LongitudeDegrees>
+            </Position>
+            <AltitudeMeters>{altitude}</AltitudeMeters>
+            <DistanceMeters>0.0</DistanceMeters>
+            <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
+            <Cadence>{cadence}</Cadence>
+            {extension}
+          </Trackpoint>
 """.format(time=self.timestamp, latitude=self.latitude,
             longitude=self.longitude, altitude=self.altitude,
             hr=self.hr, cadence=self.cadence,
@@ -463,18 +463,18 @@ class TrackLap:
     def write_tcx(self, start_time, trackpoints, opts):
         '''Write lap info to TCX file'''
         ret = """
-    <Lap StartTime="{starttime}">
-      <TotalTimeSeconds>{totaltime}</TotalTimeSeconds>
-      <DistanceMeters>{distance}</DistanceMeters>
-      <MaximumSpeed>{maxspeed}</MaximumSpeed>
-      <AverageHeartRateBpm><Value>{avghr}</Value></AverageHeartRateBpm>
-      <MaximumHeartRateBpm><Value>{maxhr}</Value></MaximumHeartRateBpm>
-      <Cadence>{avgcad}</Cadence>
-      <Calories>0</Calories>
-      <Intensity>Active</Intensity>
-      <TriggerMethod>Manual</TriggerMethod>
+      <Lap StartTime="{starttime}">
+        <TotalTimeSeconds>{totaltime}</TotalTimeSeconds>
+        <DistanceMeters>{distance}</DistanceMeters>
+        <MaximumSpeed>{maxspeed}</MaximumSpeed>
+        <AverageHeartRateBpm><Value>{avghr}</Value></AverageHeartRateBpm>
+        <MaximumHeartRateBpm><Value>{maxhr}</Value></MaximumHeartRateBpm>
+        <Cadence>{avgcad}</Cadence>
+        <Calories>0</Calories>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
 
-      <Track>
+        <Track>
 """.format(starttime=(start_time + timedelta(seconds = self.end_time - self.lap_time)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             totaltime=self.lap_time, distance=self.distance * 1.0,
             maxspeed=self.max_speed * 1000.0, avghr=self.avg_hr,
@@ -722,16 +722,14 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
         self.__outputfile = outputfile
         print >> self.__outputfile, \
             """<?xml version="1.0" encoding="UTF8" standalone="no" ?>
-
 <TrainingCenterDatabase
   xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
-  "http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
+  xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
 
   <Activities>
     <Activity Sport="Biking">
-    <Id>{starttime}</Id>
+      <Id>{starttime}</Id>
 """.format(starttime=self.start_time.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     def write_gpx_track(self):
@@ -760,10 +758,30 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
         <Name>https://github.com/kgkilo/gb580</Name>
         <UnitId>0</UnitId>
         <ProductID>0</ProductID>
+        <Version>
+          <VersionMajor>1</VersionMajor>
+          <VersionMinor>1</VersionMinor>
+          <BuildMajor>1</BuildMajor>
+          <BuildMinor>1</BuildMinor>
+        </Version>
       </Creator>
 
     </Activity>
   </Activities>
+
+  <Author xsi:type="Application_t">
+    <Build>
+      <Version>
+        <VersionMajor>1</VersionMajor>
+        <VersionMinor>1</VersionMinor>
+        <BuildMajor>1</BuildMajor>
+        <BuildMinor>1</BuildMinor>
+      </Version>
+      <Type>Release</Type>
+    </Build>
+    <LangID>en</LangID>
+    <PartNumber>000-00000-00</PartNumber>
+  </Author>
 </TrainingCenterDatabase>
 """
 
