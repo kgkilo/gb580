@@ -279,7 +279,8 @@ class TrackPoint:
         #if ((not self.__opts['nopower']) and (power is not None)):
         if (self.power is not None):
             extension_found = True
-            pow_ext = "<Power>{pwr}</Power>".format(pwr=self.power)
+            #pow_ext = "<Power>{pwr}</Power>".format(pwr=self.power)
+            pow_ext = "<Watts>{pwr}</Watts>".format(pwr=self.power)
 
         if not extension_found:
             return ""
