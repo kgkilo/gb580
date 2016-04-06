@@ -695,10 +695,11 @@ class GB580(Serial):
         return len(self.track_points)
 
     def write_gpx_header(self, outputfile):
+        '''Write GPX file header
+
+        Creator set to Garmin Edge 800 so that Strava accepts
+        barometric altitude datae'''
         self.__outputfile = output_file
-        #Write GPX header
-        #Creator set to Garmin Edge 800 so that Strava accepts
-        # barometric altitude datae
         print >> self.__outputfile, \
             '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>'
         print >> self.__outputfile, """
