@@ -46,7 +46,10 @@ class Utilities():
 
     @classmethod
     def hex2dec(self, s):
-        return int(s, 16)
+        if s == '':
+            return 0
+        else:
+            return int(s, 16)
 
     @classmethod
     def hex2chr(self, hex):
