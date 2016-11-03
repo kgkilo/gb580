@@ -204,6 +204,9 @@ class TrackPoint:
                 self.cadence, self.power_cad, self.power)
         return act_time
 
+    def get_timestamp(self):
+        return self.timestamp
+
     def extension_gpx(self, temp):
         '''Compiles the GPX extension part of a trackpoint'''
         #if self.__opts['noext']:
@@ -338,7 +341,6 @@ class TrackPoint:
               <LatitudeDegrees>{latitude}</LatitudeDegrees>
               <LongitudeDegrees>{longitude}</LongitudeDegrees>
             </Position>
-            <DistanceMeters>0.0</DistanceMeters>
             <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
             <Cadence>{cadence}</Cadence>
             {extension}
@@ -357,7 +359,6 @@ class TrackPoint:
               <LongitudeDegrees>{longitude}</LongitudeDegrees>
             </Position>
             <AltitudeMeters>{altitude}</AltitudeMeters>
-            <DistanceMeters>0.0</DistanceMeters>
             <HeartRateBpm><Value>{hr}</Value></HeartRateBpm>
             <Cadence>{cadence}</Cadence>
             {extension}
@@ -411,7 +412,7 @@ class TrackLap:
     54      0000                                            AveragePower
     56      0000                                            MaximumPower
     58      0000                                            2-byte pad
-    60      0000                                            StartPointIndex
+    60      0000    0000    0=0 (first point)               StartPointIndex
     62      0E01    010E    0*4096+1*256+0*16+14=270        EndPointIndex
     '''
 
@@ -475,13 +476,13 @@ class TrackLap:
         <TriggerMethod>Manual</TriggerMethod>
 
         <Track>
-""".format(starttime=(start_time + timedelta(seconds = self.end_time - self.lap_time)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+""".format(starttime=trackpoints[self.start_pt_index].get_timestamp(),
             totaltime=self.lap_time, distance=self.distance * 1.0,
             maxspeed=self.max_speed * 1000.0, avghr=self.avg_hr,
             maxhr=self.max_hr, avgcad=self.avg_cadence)
 
         '''Write all points'''
-        for pt in trackpoints:
+        for pt in trackpoints[self.start_pt_index:self.end_pt_index]:
             ret += pt.write_tcx(opts['noalti'])
 
         return ret
@@ -659,6 +660,7 @@ class GB580(Serial):
             offset += tl.process_lap(data[offset:])
             self.track_laps.append(tl)
 
+        print '%d lap(s) fetched' % len(self.track_laps)
         if DEBUG:
             print len(self.track_laps)
         return len(self.track_laps)
@@ -690,6 +692,8 @@ class GB580(Serial):
             else:
                 break
         sys.stdout.write("\n")
+        print '%d points fetched' % len(self.track_points)
+
         if DEBUG:
             print len(self.track_points)
         return len(self.track_points)
@@ -860,7 +864,7 @@ if __name__=="__main__":
 
     gb.get_model()                  # Just for info
     tracks = gb.read_tracklist()    # List all tracks in memory
-    track = gb.read_track(29)       # Read one track
+    track = gb.read_track("08")       # Read one track
     gb.read_laps()                  # Read the track laps
     gb.read_trackpoints()           # Read the trackpoints
 
