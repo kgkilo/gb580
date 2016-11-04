@@ -796,13 +796,6 @@ xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/
 """
 
 
-def parsedecisec(dsec):
-    hours = dsec / 36000;
-    minutes = (dsec - (hours * 36000)) / 600
-    seconds = (dsec - (hours * 36000) - (minutes * 600)) / 10
-    dseconds = (dsec - (hours * 36000) - (minutes * 600) - (seconds * 10))
-    return '%2.2d:%2.2d:%2.2d.%1d' % (hours, minutes, seconds, dseconds)
-
 
 def usage():
     '''Prints default usage help'''
