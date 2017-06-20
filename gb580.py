@@ -279,7 +279,7 @@ class TrackPoint:
         spd_ext = ""
         if (self.speed is not None):
             extension_found = True
-            spd_ext = "<Speed>{spd}</Speed>".format(spd=self.speed)
+            spd_ext = "<Speed>{spd}</Speed>".format(spd=self.speed/3.6) #Speed in m/s, not in km/h
 
         pow_ext = ""
         #if ((not self.__opts['nopower']) and (power is not None)):
@@ -481,7 +481,7 @@ class TrackLap:
         <Track>
 """.format(starttime=trackpoints[self.start_pt_index].get_timestamp(),
             totaltime=self.lap_time, distance=self.distance * 1.0,
-            maxspeed=self.max_speed * 1000.0, avghr=self.avg_hr,
+            maxspeed=self.max_speed * 1000.0 / 3.6, avghr=self.avg_hr,
             maxhr=self.max_hr, avgcad=self.avg_cadence)
 
         '''Write all points'''
