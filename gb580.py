@@ -26,6 +26,8 @@ from dateutil import parser #needs python-dateutil on Ubuntu
 from datetime import timedelta
 import getopt
 
+TIME_OFFSET = 2 #Summer time=2, winter time=1
+
 DEBUG = False
 TRACK_HEADER_LEN = 48   # 24bytes
 TRACK_POINT_LEN = 64    # 32bytes
@@ -126,7 +128,7 @@ class Utilities():
     def read_datetime(self, hex, timezone):
         return datetime.datetime(2000 + self.hex2dec(hex[0:2]),
             self.hex2dec(hex[2:4]), self.hex2dec(hex[4:6]),
-            self.hex2dec(hex[6:8]) - 2, self.hex2dec(hex[8:10]),
+            self.hex2dec(hex[6:8]) - TIME_OFFSET, self.hex2dec(hex[8:10]),
             self.hex2dec(hex[10:12]), tzinfo=timezone)
 
 
