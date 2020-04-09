@@ -25,6 +25,7 @@ from decimal import Decimal
 from dateutil import parser #needs python-dateutil on Ubuntu
 from datetime import timedelta
 import getopt
+import os
 
 TIME_OFFSET = 2 #Summer time=2, winter time=1
 
@@ -871,8 +872,12 @@ if __name__=="__main__":
     else:
         root_filename = gb.get_startdate()
 
+    filenum = 1
     if opts['output-format'] == 'gpx':
         output_filename = root_filename + '.gpx'
+        while os.path.isfile(output_filename):
+            output_filename = output_filename + '_' + str(filenum)
+            filenum += 1
         output_file = open(output_filename, 'w')
         print "Creating file {0}".format(output_filename)
         gb.write_gpx_header(output_file)
@@ -881,6 +886,9 @@ if __name__=="__main__":
         output_file.close()
     elif opts['output-format'] == 'tcx':
         output_filename = root_filename + '.tcx'
+        while os.path.isfile(output_filename):
+            output_filename = output_filename + '_' + str(filenum)
+            filenum += 1
         output_file = open(output_filename, 'w')
         print "Creating file {0}".format(output_filename)
         gb.write_tcx_header(output_file)
